@@ -23,14 +23,14 @@ provider:
           Action:
             - s3:putObject
             - s3:putObjectAcl
-          Resource: arn:aws:s3:::sc2021b3-demoapp-0000/*
+          Resource: arn:aws:s3:::sc2021b3-demoapp-0316/*
   httpApi:
     cors: true
     authorizers:
       auth0Authorizer:
         type: jwt
         identitySource: $request.header.Authorization
-        issuerUrl: https://dev-9zllcerz.us.auth0.com/
+        issuerUrl: https://dev-yzaxqgdg.us.auth0.com/
         audience: https://example.nekoruri.jp/
 
 functions:
@@ -41,6 +41,13 @@ functions:
           method: GET
           path: /
           authorizer: auth0Authorizer
+  getTagname:
+    handler: handler.getTagname
+    events:
+      - httpApi:
+          method: GET
+          path: /tagname
+
   post:
     handler: handler.post
     events:
@@ -59,6 +66,18 @@ resources:
             AttributeType: S
           - AttributeName: created_at
             AttributeType: N
+          - AttributeName: tagname
+            AttributeType: S
+        GlobalSecondaryIndexes:
+          - IndexName: tagIndex
+            KeySchema:
+            - AttributeName: tagname
+              KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
         KeySchema:
           - AttributeName: username
             KeyType: HASH
@@ -71,7 +90,7 @@ resources:
     ImageS3Bucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: 'sc2021b3-demoapp-0000'
+        BucketName: 'sc2021b3-demoapp-0316'
         CorsConfiguration:
           CorsRules:
             - AllowedHeaders: ["*"]

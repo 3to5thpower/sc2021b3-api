@@ -5,8 +5,8 @@ const dynamodb = new AWS.DynamoDB.DocumentClient();
 const s3 = new AWS.S3();
 const parser = require('lambda-multipart-parser');
 
-const imageBucketName = 'sc2021b3-demoapp-0000';
-const userinfoUrl = 'https://dev-9zllcerz.us.auth0.com/userinfo';
+const imageBucketName = 'sc2021b3-demoapp-0316';
+const userinfoUrl = 'https://dev-yzaxqgdg.us.auth0.com/userinfo';
 
 // Auth0のuserinfoエンドポイントからユーザ情報を取得
 const getUserinfo = async (event) => {
@@ -39,7 +39,7 @@ module.exports.get = async (event) => {
   const posts = (await dynamodb.query({
     TableName: 'posts',
     KeyConditionExpression: 'username = :username',
-    ExpressionAttributeValues: {':username': target},
+    ExpressionAttributeValues: { ':username': target },
     ScanIndexForward: false,
     Limit: 10,
     ReturnConsumedCapacity: 'INDEXES',
@@ -53,9 +53,41 @@ module.exports.get = async (event) => {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({event, userinfo, posts: posts.Items}, null, 2),
+    body: JSON.stringify({ event, userinfo, posts: posts.Items, }, null, 2),
   };
 };
+
+// GET /tagname?tagname=hoge
+module.exports.getTagname = async (event) => {
+  const userinfo = await getUserinfo(event);
+  const tagname = event?.queryStringParameters?.tagname || "test-tag";
+
+  // postsテーブルからユーザー名を指定して新しい順に10件取得
+  const posts = (await dynamodb.query({
+    TableName: 'posts',
+    IndexName: "tagIndex",
+    KeyConditionExpression: 'tagname = :tagname',
+    ExpressionAttributeValues: {
+      ':tagname': tagname
+    },
+    ScanIndexForward: false,
+    Limit: 10,
+    ProjectionExpression: "username, created_at, tagname, body",
+    ReturnConsumedCapacity: 'INDEXES',
+  }).promise());
+
+  // 消費したCapacityをログ出力
+  console.info(`Query: table=posts consumed=${posts.ConsumedCapacity.CapacityUnits}`);
+
+  return {
+    statusCode: 200,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ event, userinfo, posts: posts.Items, }, null, 2),
+  };
+
+}
 
 // POST /
 // 投稿API
@@ -66,6 +98,7 @@ module.exports.post = async (event) => {
   console.log(JSON.stringify(request));
 
   const body = request?.body;
+  const tagname = request?.tagname;
 
   if (!body?.length) {
     return {
@@ -73,7 +106,7 @@ module.exports.post = async (event) => {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({event, userinfo}, null, 2),
+      body: JSON.stringify({ event, userinfo }, null, 2),
     };
   }
 
@@ -97,6 +130,7 @@ module.exports.post = async (event) => {
     TableName: 'posts',
     Item: {
       username: userinfo.name,
+      tagname,
       created_at: timestamp,
       body,
       imageUrl,
@@ -112,6 +146,6 @@ module.exports.post = async (event) => {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({event, userinfo, imageUrl}, null, 2),
+    body: JSON.stringify({ event, userinfo, imageUrl }, null, 2),
   };
 };
